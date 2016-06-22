@@ -87,6 +87,114 @@ curl -XPUT http://localhost:9200/blog/ -d '{ "settings" : { "number_of_shards" :
 ```
 
 
+
+
+#####chapter3
+######Querying Elasticsearch
+create a file name map.json
+```
+{
+  "book" : {
+    "properties" : {
+      "author" : {
+        "type" : "string"
+      },
+      "characters" : {
+        "type" : "string"
+      },
+      "copies" : {
+        "type" : "long",
+        "ignore_malformed" : false
+      },
+      "otitle" : {
+        "type" : "string"
+      },
+      "tags" : {
+        "type" : "string",
+        "index" : "not_analyzed"
+      },
+      "title" : {
+        "type" : "string"
+      },
+      "year" : {
+        "type" : "long",
+        "ignore_malformed" : false,
+        "index" : "analyzed"
+      },
+      "available" : {
+        "type" : "boolean"
+      }
+    }
+  }
+}
+```
+create an index   note the curl syntax from json file, use @
+```
+curl -XPOST 'localhost:9200/library'
+curl -XPUT 'localhost:9200/library/book/_mapping' -d @mapping.json   
+```
+
+insert data, using -s param, line by line. two line per group
+```
+{ "index": {"_index": "library", "_type": "book", "_id": "1"}}
+{ "title": "All Quiet on the Western Front","otitle": "Im Westen nichts Neues","author": "Erich Maria Remarque","year": 1929,"characters": ["Paul Bäumer", "Albert Kropp", "Haie Westhus", "Fredrich Müller", "Stanislaus Katczinsky", "Tjaden"],"tags": ["novel"],"copies": 1, "available": true, "section" : 3}
+{ "index": {"_index": "library", "_type": "book", "_id": "2"}}
+{ "title": "Catch-22","author": "Joseph Heller","year": 1961,"characters": ["John Yossarian", "Captain Aardvark", "Chaplain Tappman", "Colonel Cathcart", "Doctor Daneeka"],"tags": ["novel"],"copies": 6, "available" : false, "section" : 1}
+{ "index": {"_index": "library", "_type": "book", "_id": "3"}}
+{ "title": "The Complete Sherlock Holmes","author": "Arthur Conan Doyle","year": 1936,"characters": ["Sherlock Holmes","Dr. Watson", "G. Lestrade"],"tags": [],"copies": 0, "available" : false, "section" : 12}
+```
+import
+```
+curl -s -XPOST 'localhost:9200/_bulk' --data-binary @documents.json
+```
+
+simple search query (note the syntax: query->query_string->query)
+```
+curl -XGET 'localhost:9200/library/book/_search?pretty' -d '{ "query" : { "query_string" : { "query" : "title:crime" } } }'
+```
+from and size (equiv to skip and limit)
+```
+curl -XGET 'localhost:9200/library/book/_search?pretty' -d '{"from":10,"size":5, "query" : { "query_string" : { "query" : "title:crime" } } }'
+```
+return versioning number
+```
+curl -XGET 'localhost:9200/library/book/_search?pretty' -d '{ "version" : true, "query" : { "query_string" : { "query" : "title:crime" } } }'
+```
+min_score( I think might be deprecated in future)
+```
+curl -XGET 'localhost:9200/library/book/_search?pretty' -d '{ "min_score" : 0.75, "query" : { "query_string" : { "query" : "title:crime" } } }'
+```
+choose return fields
+```
+curl -XGET 'localhost:9200/library/book/_search?pretty' -d '{ "fields" : [ "title", "year" ], "query" : { "query_string" : { "query" : "title:crime" } } }'
+```
+
+[Difference between _source and fields](https://discuss.elastic.co/t/difference-between--source-and-fields-projections/22927)
+filter source
+```
+curl -XGET 'localhost:9200/library/book/_search?pretty' -d '{ "_source" : false, "query" : { "query_string" : { "query" : "title:crime" } } }'
+curl -XGET 'localhost:9200/library/book/_search?pretty' -d '{ "_source" : ["title", "otitle"], "query" : { "query_string" : { "query" : "title:crime" } } }'
+```
+include and exclude some part
+```
+curl -XGET 'localhost:9200/library/book/_search?pretty' -d '{ "_source" : { "include" : [ "t*"], "exclude" : ["title"] }, "query" : { "query_string" : { "query" : "title:crime" } } }'
+```
+
+#####Chapter 6
+######Scripting capabilities
+```
+_doc = org.elasticsearch.search.loolup.LeafDocLookup                                        
+```
+
+
+
+
+
+
+
+
+
+
 #####9
 ######The gateway and recovery modules
 ```
@@ -112,6 +220,54 @@ shared request cache (caches the results of the queries on each shard)
 ```
 curl -XPUT 'localhost:9200/new_library' -d '{ "settings": { "index.requests.cache.enable": true } }'
 ```
+
+######Controlling cluster rebalancing
+```
+cluster.routing.allocation.allow_rebalance
+```
+(to be conti)
+
+######CAT api
+```
+curl -XGET 'localhost:9200/_cat/health'
+curl -XGET 'localhost:9200/_cat/health?v'          //verbose output
+```
+-h: specify return fields
+```
+curl -XGET 'localhost:9200/_cat/nodes?v&h=name,node.role,load,uptime'
+```
+recovery status
+```
+curl -XGET 'localhost:9200/_cat/recovery/blog?v&h=index,shard,time,type,stage,files_percent' 
+```
+######Warmers (deprecated in es 2.3)
+######index aliasing
+create and delete index alias
+```
+curl -XPOST 'http://localhost:9200/_aliases' -d '
+{
+    "actions" : [
+        { "remove" : { "index" : "test1", "alias" : "alias1" } },
+        { "add" : { "index" : "test1", "alias" : "alias2" } }
+    ]
+}'
+```
+index alias patterns
+```
+curl -XPOST 'http://localhost:9200/_aliases' -d '
+{
+    "actions" : [
+        { "add" : { "index" : "test*", "alias" : "all_test_indices" } }
+    ]
+}'
+```
+same as
+```
+curl -XPUT 'localhost:9200/test*/_alias/all_test_indices'
+```
+
+
+
 #####Chapter 11. Scaling by Example
 ######
 Avoiding swapping.Es and Jvm based applications, don't like to be swapped(these applications work best if the operating system doesn't put the memory that they use in the swap space)  
@@ -198,3 +354,4 @@ marvel and kibana
 /usr/share/elasticsearch/bin/plugin install marvel-agent
 bin/kibana plugin --install elasticsearch/marvel/latest
 ```
+
