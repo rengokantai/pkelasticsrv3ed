@@ -179,6 +179,28 @@ include and exclude some part
 ```
 curl -XGET 'localhost:9200/library/book/_search?pretty' -d '{ "_source" : { "include" : [ "t*"], "exclude" : ["title"] }, "query" : { "query_string" : { "query" : "title:crime" } } }'
 ```
+######Understanding the querying process
+search_type:
+```
+query_then_fetch
+dfs_query_then_fetch
+```
+search_type exp:
+```
+curl -XGET 'localhost:9200/library/book/_search?pretty&search_type=query_then_fetch' -d '{ "query" : { "term" : { "title" : "crime" } } }'
+```
+preference:  
+_primary,_primary_first,_replica,_replica_first,_local,only_node:id,....
+```
+curl -XGET 'localhost:9200/library/_search?pretty&preference=_local' -d '{ "query" : { "term" : { "title" : "crime" } } }'
+```
+
+search shard
+```
+curl -XGET 'localhost:9200/library/_search_shards?pretty' -d '{"query":"match_all":{}}'
+```
+
+
 
 #####Chapter 6
 ######Scripting capabilities
